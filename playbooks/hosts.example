@@ -1,0 +1,6 @@
+[servers]
+probe.example.com ansible_user=root ansible_private_key_file=~/.ssh/speed
+
+[servers:vars]
+uniq_id=ACCOUNT_ID
+probe_archive_url=https://github.com/twoip/probe/releases/latest/download/2ip-probe.linux.x86_64.tar.gz

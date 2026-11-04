@@ -1,0 +1,14 @@
+[Unit]
+Description=2ip Probe
+After=network.target
+
+[Service]
+User=nobody
+AmbientCapabilities=CAP_NET_RAW
+ExecStart=/usr/local/bin/2ip-probe --id={{ uniq_id }}
+Restart=always
+RestartSec=5
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

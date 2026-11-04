@@ -1,0 +1,82 @@
+---
+- name: Install 2ip Probe
+  hosts: servers
+  become: true
+  tasks:
+    - name: Validate installation settings
+      ansible.builtin.assert:
+        that:
+          - ansible_service_mgr == 'systemd'
+          - uniq_id | default('') is match('^[A-Za-z0-9_-]+\Z')
+          - probe_archive_url | default('') is match('^https://')
+      no_log: true
+
+    - name: Create temporary directory for release
+      ansible.builtin.tempfile:
+        state: directory
+      register: probe_stage
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Install release binary
+      when: not ansible_check_mode
+      block:
+        - name: Extract release
+          ansible.builtin.unarchive:
+            src: "{{ probe_archive_url }}"
+            dest: "{{ probe_stage.path }}"
+            remote_src: true
+            include:
+              - 2ip-probe
+          changed_when: false
+
+        - name: Ensure binary directory exists
+          ansible.builtin.file:
+            path: /usr/local/bin
+            state: directory
+            mode: '0755'
+
+        - name: Install binary
+          ansible.builtin.copy:
+            src: "{{ probe_stage.path }}/2ip-probe"
+            dest: /usr/local/bin/2ip-probe
+            remote_src: true
+            owner: root
+            group: root
+            mode: '0755'
+          notify: Restart 2ip Probe
+      always:
+        - name: Remove temporary release files
+          ansible.builtin.file:
+            path: "{{ probe_stage.path }}"
+            state: absent
+          changed_when: false
+
+    - name: Install service unit
+      ansible.builtin.template:
+        src: 2ip-probe.service
+        dest: /etc/systemd/system/2ip-probe.service
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+      diff: false
+      notify: Restart 2ip Probe
+
+    - name: Apply service changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start 2ip Probe
+      ansible.builtin.systemd_service:
+        name: 2ip-probe.service
+        enabled: true
+        state: started
+      when: not ansible_check_mode
+
+  handlers:
+    - name: Restart 2ip Probe
+      ansible.builtin.systemd_service:
+        name: 2ip-probe.service
+        daemon_reload: true
+        state: restarted
+      when: not ansible_check_mode
