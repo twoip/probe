@@ -63,6 +63,31 @@
       diff: false
       notify: Restart 2ip Probe
 
+    - name: Check legacy 2ip Speed unit
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=LoadState
+          - --value
+          - 2ip-speed.service
+      register: legacy_speed_unit
+      changed_when: false
+      check_mode: false
+
+    - name: Stop and disable legacy 2ip Speed
+      ansible.builtin.systemd_service:
+        name: 2ip-speed.service
+        state: stopped
+        enabled: false
+      when: legacy_speed_unit.stdout | trim == 'loaded'
+
+    - name: Remove legacy 2ip Speed unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/2ip-speed.service
+        state: absent
+      notify: Reload systemd
+
     - name: Apply service changes
       ansible.builtin.meta: flush_handlers
 
@@ -74,6 +99,11 @@
       when: not ansible_check_mode
 
   handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: not ansible_check_mode
+
     - name: Restart 2ip Probe
       ansible.builtin.systemd_service:
         name: 2ip-probe.service
